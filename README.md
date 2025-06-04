@@ -1,4 +1,5 @@
-![img](img.png)
+![social network](social-network.png)
+
 # 🤖 Robot Population Simulation
 
 Zaawansowana symulacja populacji robotów z dwoma typami behawioralnymi, implementująca różnorodne wzorce interakcji społecznych i strategii przetrwania w warunkach normalnych i kryzysowych.
