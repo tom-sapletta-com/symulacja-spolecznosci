@@ -1,0 +1,951 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Symulacja Populacji Robotów</title>
+    <style>
+        body {
+            font-family: 'Courier New', monospace;
+            background: linear-gradient(135deg, #1a1a2e, #16213e);
+            color: #00ff41;
+            margin: 0;
+            padding: 20px;
+            min-height: 100vh;
+        }
+        
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background: rgba(0, 0, 0, 0.8);
+            border: 2px solid #00ff41;
+            border-radius: 10px;
+            padding: 20px;
+        }
+        
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+            border-bottom: 2px solid #00ff41;
+            padding-bottom: 20px;
+        }
+        
+        .controls {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+        
+        button {
+            background: linear-gradient(45deg, #00ff41, #00cc33);
+            border: none;
+            color: black;
+            padding: 12px 24px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: all 0.3s;
+        }
+        
+        button:hover {
+            transform: scale(1.05);
+            box-shadow: 0 0 20px #00ff41;
+        }
+        
+        button:disabled {
+            background: #333;
+            color: #666;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+        
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+        
+        .stat-panel {
+            background: rgba(0, 255, 65, 0.1);
+            border: 1px solid #00ff41;
+            border-radius: 8px;
+            padding: 15px;
+        }
+        
+        .stat-panel h3 {
+            margin-top: 0;
+            color: #00ff41;
+            text-shadow: 0 0 10px #00ff41;
+        }
+        
+        .robot-grid {
+            display: grid;
+            grid-template-columns: repeat(10, 30px);
+            gap: 2px;
+            margin: 10px 0;
+            justify-content: center;
+        }
+        
+        .robot-cell {
+            width: 30px;
+            height: 30px;
+            border: 1px solid #444;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+            border-radius: 3px;
+        }
+        
+        .interactive { background: #ff6b35; color: white; }
+        .rule-based { background: #4ecdc4; color: black; }
+        .dead { background: #333; color: #666; }
+        
+        .log-container {
+            background: rgba(0, 0, 0, 0.9);
+            border: 1px solid #00ff41;
+            border-radius: 8px;
+            padding: 15px;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        
+        .log-entry {
+            margin: 5px 0;
+            padding: 5px;
+            border-left: 3px solid;
+            padding-left: 10px;
+        }
+        
+        .log-normal { border-color: #00ff41; }
+        .log-threat { border-color: #ff4444; background: rgba(255, 68, 68, 0.1); }
+        .log-interaction { border-color: #ff6b35; background: rgba(255, 107, 53, 0.1); }
+        .log-rule { border-color: #4ecdc4; background: rgba(78, 205, 196, 0.1); }
+        
+        .scenario-info {
+            background: rgba(255, 255, 0, 0.1);
+            border: 2px solid #ffff00;
+            border-radius: 8px;
+            padding: 15px;
+            margin: 10px 0;
+            text-align: center;
+        }
+        
+        .progress-bar {
+            width: 100%;
+            height: 20px;
+            background: #333;
+            border-radius: 10px;
+            overflow: hidden;
+            margin: 10px 0;
+        }
+        
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #00ff41, #00cc33);
+            transition: width 0.3s;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🤖 SYMULACJA POPULACJI ROBOTÓW 🤖</h1>
+            <p>Analiza zachowań dwóch typów robotów w różnych scenariuszach</p>
+        </div>
+        
+        <div class="controls">
+            <button onclick="initializePopulation()">Zainicjuj Populację</button>
+            <button onclick="startNormalSimulation()" id="normalBtn">Symulacja Normalna</button>
+            <button onclick="startThreatSimulation()" id="threatBtn">Symulacja Zagrożenia</button>
+            <button onclick="stopSimulation()" id="stopBtn">Stop</button>
+            <button onclick="clearLogs()">Wyczyść Logi</button>
+            <button onclick="exportResults()">Eksportuj Wyniki</button>
+        </div>
+        
+        <div class="scenario-info" id="scenarioInfo">
+            Kliknij "Zainicjuj Populację" aby rozpocząć
+        </div>
+        
+        <div class="stats-grid">
+            <div class="stat-panel">
+                <h3>📊 Statystyki Populacji</h3>
+                <div>Roboty Interaktywne (🔥): <span id="interactiveCount">0</span></div>
+                <div>Roboty Zasadnicze (⚡): <span id="ruleBasedCount">0</span></div>
+                <div>Martwe: <span id="deadCount">0</span></div>
+                <div>Całkowita Populacja: <span id="totalCount">0</span></div>
+                <div class="progress-bar">
+                    <div class="progress-fill" id="survivalRate" style="width: 100%"></div>
+                </div>
+                <div>Wskaźnik Przeżywalności: <span id="survivalPercent">100%</span></div>
+            </div>
+            
+            <div class="stat-panel">
+                <h3>🎯 Metryki Behawioralne</h3>
+                <div>Interakcje Społeczne: <span id="socialInteractions">0</span></div>
+                <div>Egzekwowanie Zasad: <span id="ruleEnforcements">0</span></div>
+                <div>Konflikty: <span id="conflicts">0</span></div>
+                <div>Współpraca: <span id="cooperations">0</span></div>
+                <div>Cykl Symulacji: <span id="cycleCount">0</span></div>
+            </div>
+        </div>
+        
+        <div class="stat-panel">
+            <h3>🗺️ Mapa Populacji</h3>
+            <div class="robot-grid" id="robotGrid"></div>
+            <div style="margin-top: 10px; font-size: 12px;">
+                🔥 = Interaktywny | ⚡ = Zasadniczy | ☠️ = Martwy
+            </div>
+        </div>
+        
+        <div class="stat-panel">
+            <h3>📝 Logi Zachowań</h3>
+            <div class="log-container" id="logContainer"></div>
+        </div>
+    </div>
+
+    <script>
+        // Definicje typów robotów
+        class Robot {
+            constructor(id, type, x, y) {
+                this.id = id;
+                this.type = type; // 'interactive' lub 'rule-based'
+                this.x = x;
+                this.y = y;
+                this.energy = 100;
+                this.health = 100;
+                this.alive = true;
+                this.stress = 0;
+                this.socialConnections = [];
+                this.lastAction = null;
+                this.cooperationScore = 0;
+                this.conflictScore = 0;
+            }
+            
+            // Metody wspólne
+            isAlive() { return this.alive && this.health > 0; }
+            
+            takeDamage(amount) {
+                this.health -= amount;
+                this.stress += amount * 0.5;
+                if (this.health <= 0) {
+                    this.alive = false;
+                    this.health = 0;
+                }
+            }
+            
+            heal(amount) {
+                if (this.alive) {
+                    this.health = Math.min(100, this.health + amount);
+                    this.stress = Math.max(0, this.stress - amount * 0.3);
+                }
+            }
+            
+            consumeEnergy(amount) {
+                this.energy = Math.max(0, this.energy - amount);
+                if (this.energy === 0) {
+                    this.takeDamage(5);
+                }
+            }
+        }
+        
+        class InteractiveRobot extends Robot {
+            constructor(id, x, y) {
+                super(id, 'interactive', x, y);
+                this.empathy = Math.random() * 50 + 50; // 50-100
+                this.socialDrive = Math.random() * 40 + 60; // 60-100
+            }
+            
+            // Skupia się na interakcjach społecznych
+            normalBehavior(population) {
+                if (!this.isAlive()) return null;
+                
+                const nearbyRobots = this.findNearbyRobots(population);
+                this.consumeEnergy(3);
+                
+                if (nearbyRobots.length > 0) {
+                    const target = nearbyRobots[Math.floor(Math.random() * nearbyRobots.length)];
+                    
+                    if (Math.random() < 0.7) { // Wysoka szansa na pozytywną interakcję
+                        return this.cooperate(target);
+                    } else if (this.stress > 60) {
+                        return this.seekComfort(target);
+                    } else {
+                        return this.socialize(target);
+                    }
+                }
+                
+                return this.explore();
+            }
+            
+            threatResponse(population, threat) {
+                if (!this.isAlive()) return null;
+                
+                const nearbyRobots = this.findNearbyRobots(population);
+                this.stress += 15;
+                this.consumeEnergy(8);
+                
+                if (nearbyRobots.length > 0) {
+                    // Próbuje chronić innych lub szukać wsparcia
+                    if (Math.random() < 0.6) {
+                        return this.protectOthers(nearbyRobots, threat);
+                    } else {
+                        return this.seekSupport(nearbyRobots, threat);
+                    }
+                } else {
+                    return this.panicFlee(threat);
+                }
+            }
+            
+            cooperate(target) {
+                this.cooperationScore++;
+                this.heal(5);
+                target.heal(3);
+                this.lastAction = 'cooperate';
+                return {
+                    type: 'interaction',
+                    actor: this,
+                    target: target,
+                    action: 'współpraca',
+                    result: 'Obydwa roboty zyskały energię przez współpracę'
+                };
+            }
+            
+            socialize(target) {
+                this.stress = Math.max(0, this.stress - 10);
+                this.lastAction = 'socialize';
+                return {
+                    type: 'interaction',
+                    actor: this,
+                    target: target,
+                    action: 'socjalizacja',
+                    result: 'Zmniejszenie stresu przez interakcję społeczną'
+                };
+            }
+            
+            protectOthers(robots, threat) {
+                const weakest = robots.sort((a, b) => a.health - b.health)[0];
+                this.takeDamage(15);
+                weakest.heal(10);
+                this.lastAction = 'protect';
+                return {
+                    type: 'threat',
+                    actor: this,
+                    target: weakest,
+                    action: 'ochrona',
+                    result: `Robot ${this.id} chroni ${weakest.id} kosztem własnego zdrowia`
+                };
+            }
+            
+            findNearbyRobots(population) {
+                return population.filter(robot => 
+                    robot.id !== this.id && 
+                    robot.isAlive() && 
+                    Math.abs(robot.x - this.x) <= 2 && 
+                    Math.abs(robot.y - this.y) <= 2
+                );
+            }
+            
+            explore() {
+                this.lastAction = 'explore';
+                return {
+                    type: 'normal',
+                    actor: this,
+                    action: 'eksploracja',
+                    result: 'Szuka nowych możliwości interakcji'
+                };
+            }
+            
+            seekComfort(target) {
+                this.stress = Math.max(0, this.stress - 15);
+                this.lastAction = 'seek_comfort';
+                return {
+                    type: 'interaction',
+                    actor: this,
+                    target: target,
+                    action: 'poszukiwanie wsparcia',
+                    result: 'Znaczące zmniejszenie stresu'
+                };
+            }
+            
+            seekSupport(robots, threat) {
+                this.stress = Math.max(0, this.stress - 8);
+                this.lastAction = 'seek_support';
+                return {
+                    type: 'threat',
+                    actor: this,
+                    action: 'szukanie wsparcia grupowego',
+                    result: 'Grupa zapewnia bezpieczeństwo psychiczne'
+                };
+            }
+            
+            panicFlee(threat) {
+                this.stress += 20;
+                this.consumeEnergy(15);
+                this.lastAction = 'panic_flee';
+                return {
+                    type: 'threat',
+                    actor: this,
+                    action: 'paniczna ucieczka',
+                    result: 'Wysokie koszty energetyczne i stres'
+                };
+            }
+        }
+        
+        class RuleBasedRobot extends Robot {
+            constructor(id, x, y) {
+                super(id, 'rule-based', x, y);
+                this.discipline = Math.random() * 30 + 70; // 70-100
+                this.orderMaintenance = Math.random() * 35 + 65; // 65-100
+                this.rules = [
+                    'maintain_order',
+                    'enforce_efficiency', 
+                    'preserve_resources',
+                    'establish_hierarchy'
+                ];
+            }
+            
+            // Skupia się na zasadach i porządku
+            normalBehavior(population) {
+                if (!this.isAlive()) return null;
+                
+                const nearbyRobots = this.findNearbyRobots(population);
+                this.consumeEnergy(2); // Bardziej efektywny
+                
+                if (nearbyRobots.length > 0) {
+                    // Wybiera akcję bazując na regułach
+                    const chaoticRobots = nearbyRobots.filter(r => r.stress > 40);
+                    
+                    if (chaoticRobots.length > 0) {
+                        return this.enforceOrder(chaoticRobots[0]);
+                    } else if (Math.random() < 0.4) {
+                        return this.establishHierarchy(nearbyRobots);
+                    } else {
+                        return this.optimizeEfficiency(nearbyRobots);
+                    }
+                }
+                
+                return this.patrol();
+            }
+            
+            threatResponse(population, threat) {
+                if (!this.isAlive()) return null;
+                
+                const nearbyRobots = this.findNearbyRobots(population);
+                this.stress += 8; // Mniej podatny na stres
+                this.consumeEnergy(5);
+                
+                if (nearbyRobots.length > 0) {
+                    // Organizuje obronę lub ewakuację
+                    if (Math.random() < 0.7) {
+                        return this.organizeDefense(nearbyRobots, threat);
+                    } else {
+                        return this.coordinateEvacuation(nearbyRobots, threat);
+                    }
+                } else {
+                    return this.strategicRetreat(threat);
+                }
+            }
+            
+            enforceOrder(target) {
+                if (target.stress > this.stress) {
+                    target.stress = Math.max(0, target.stress - 20);
+                    this.stress += 5;
+                    this.lastAction = 'enforce_order';
+                    return {
+                        type: 'rule',
+                        actor: this,
+                        target: target,
+                        action: 'egzekwowanie porządku',
+                        result: `Przywrócenie stabilności robotowi ${target.id}`
+                    };
+                }
+                return null;
+            }
+            
+            establishHierarchy(robots) {
+                // Sortuje roboty według zdrowia i wydaje "rozkazy"
+                robots.sort((a, b) => b.health - a.health);
+                this.lastAction = 'establish_hierarchy';
+                return {
+                    type: 'rule',
+                    actor: this,
+                    action: 'ustalanie hierarchii',
+                    result: `Organizacja ${robots.length} robotów w strukturę dowodzenia`
+                };
+            }
+            
+            optimizeEfficiency(robots) {
+                // Zwiększa efektywność grupy
+                robots.forEach(robot => {
+                    if (robot.energy < 50) {
+                        robot.energy = Math.min(100, robot.energy + 10);
+                    }
+                });
+                this.lastAction = 'optimize_efficiency';
+                return {
+                    type: 'rule',
+                    actor: this,
+                    action: 'optymalizacja efektywności',
+                    result: 'Poprawa wydajności energetycznej grupy'
+                };
+            }
+            
+            organizeDefense(robots, threat) {
+                // Organizuje obronę grupową
+                const healthiestRobots = robots.filter(r => r.health > 60);
+                healthiestRobots.forEach(robot => {
+                    robot.takeDamage(8);
+                    robot.heal(3); // Skoordynowana obrona zmniejsza straty
+                });
+                this.takeDamage(5);
+                this.lastAction = 'organize_defense';
+                return {
+                    type: 'threat',
+                    actor: this,
+                    action: 'organizacja obrony',
+                    result: `Skoordynowana obrona ${healthiestRobots.length} robotów`
+                };
+            }
+            
+            coordinateEvacuation(robots, threat) {
+                // Koordynuje ewakuację
+                robots.forEach(robot => {
+                    robot.stress = Math.max(0, robot.stress - 10);
+                    robot.consumeEnergy(3);
+                });
+                this.consumeEnergy(8);
+                this.lastAction = 'coordinate_evacuation';
+                return {
+                    type: 'threat',
+                    actor: this,
+                    action: 'koordynacja ewakuacji',
+                    result: 'Uporządkowana ewakuacja minimalizuje straty'
+                };
+            }
+            
+            findNearbyRobots(population) {
+                return population.filter(robot => 
+                    robot.id !== this.id && 
+                    robot.isAlive() && 
+                    Math.abs(robot.x - this.x) <= 2 && 
+                    Math.abs(robot.y - this.y) <= 2
+                );
+            }
+            
+            patrol() {
+                this.lastAction = 'patrol';
+                return {
+                    type: 'normal',
+                    actor: this,
+                    action: 'patrol',
+                    result: 'Monitorowanie otoczenia pod kątem naruszeń porządku'
+                };
+            }
+            
+            strategicRetreat(threat) {
+                this.consumeEnergy(8);
+                this.stress += 5;
+                this.lastAction = 'strategic_retreat';
+                return {
+                    type: 'threat',
+                    actor: this,
+                    action: 'strategiczny odwrót',
+                    result: 'Kontrolowane wycofanie z zachowaniem zasobów'
+                };
+            }
+        }
+        
+        // Klasa główna symulacji
+        class RobotPopulationSimulator {
+            constructor() {
+                this.population = [];
+                this.simulationRunning = false;
+                this.currentScenario = 'none';
+                this.cycle = 0;
+                this.logs = [];
+                this.stats = {
+                    socialInteractions: 0,
+                    ruleEnforcements: 0,
+                    conflicts: 0,
+                    cooperations: 0
+                };
+            }
+            
+            initializePopulation(size = 50) {
+                this.population = [];
+                this.logs = [];
+                this.cycle = 0;
+                this.stats = {
+                    socialInteractions: 0,
+                    ruleEnforcements: 0,
+                    conflicts: 0,
+                    cooperations: 0
+                };
+                
+                // Tworzenie mieszanej populacji (mniej więcej po połowie każdego typu)
+                for (let i = 0; i < size; i++) {
+                    const x = i % 10;
+                    const y = Math.floor(i / 10);
+                    
+                    if (Math.random() < 0.5) {
+                        this.population.push(new InteractiveRobot(i, x, y));
+                    } else {
+                        this.population.push(new RuleBasedRobot(i, x, y));
+                    }
+                }
+                
+                this.log('system', `Populacja zainicjalizowana: ${size} robotów`);
+                this.updateDisplay();
+            }
+            
+            runSimulationCycle(scenario = 'normal') {
+                if (!this.simulationRunning) return;
+                
+                this.cycle++;
+                const actions = [];
+                
+                // Każdy robot podejmuje akcję
+                this.population.forEach(robot => {
+                    let action = null;
+                    
+                    if (scenario === 'normal') {
+                        action = robot.normalBehavior(this.population);
+                    } else if (scenario === 'threat') {
+                        action = robot.threatResponse(this.population, 'predator');
+                    }
+                    
+                    if (action) {
+                        actions.push(action);
+                        this.processAction(action);
+                    }
+                });
+                
+                // Naturalne procesy (regeneracja, degradacja)
+                this.population.forEach(robot => {
+                    if (robot.isAlive()) {
+                        // Naturalna regeneracja
+                        if (robot.energy < 100 && Math.random() < 0.3) {
+                            robot.energy = Math.min(100, robot.energy + 5);
+                        }
+                        
+                        // Zmniejszanie stresu z czasem
+                        if (robot.stress > 0) {
+                            robot.stress = Math.max(0, robot.stress - 2);
+                        }
+                        
+                        // Losowe niebezpieczeństwa w scenariuszu zagrożenia
+                        if (scenario === 'threat' && Math.random() < 0.1) {
+                            robot.takeDamage(Math.floor(Math.random() * 15) + 5);
+                            if (!robot.isAlive()) {
+                                this.log('threat', `Robot ${robot.id} (${robot.type}) został eliminowany przez drapieżnika`);
+                            }
+                        }
+                    }
+                });
+                
+                this.updateDisplay();
+                
+                // Kontynuuj symulację
+                setTimeout(() => this.runSimulationCycle(scenario), 1000);
+            }
+            
+            processAction(action) {
+                // Aktualizuj statystyki
+                switch (action.type) {
+                    case 'interaction':
+                        this.stats.socialInteractions++;
+                        if (action.action === 'współpraca') {
+                            this.stats.cooperations++;
+                        }
+                        break;
+                    case 'rule':
+                        this.stats.ruleEnforcements++;
+                        break;
+                    case 'threat':
+                        // Liczy konflikty i obronę
+                        if (action.action.includes('obrona') || action.action.includes('ucieczka')) {
+                            this.stats.conflicts++;
+                        }
+                        break;
+                }
+                
+                // Dodaj do logów
+                this.log(action.type, this.formatActionLog(action));
+            }
+            
+            formatActionLog(action) {
+                const timestamp = `[Cykl ${this.cycle}]`;
+                const actor = `Robot ${action.actor.id} (${action.actor.type})`;
+                const target = action.target ? ` → Robot ${action.target.id}` : '';
+                
+                return `${timestamp} ${actor}${target}: ${action.action} - ${action.result}`;
+            }
+            
+            log(type, message) {
+                const timestamp = new Date().toLocaleTimeString();
+                this.logs.unshift({
+                    timestamp,
+                    type,
+                    message
+                });
+                
+                // Ogranicz logi do ostatnich 100
+                if (this.logs.length > 100) {
+                    this.logs = this.logs.slice(0, 100);
+                }
+                
+                this.updateLogs();
+            }
+            
+            updateDisplay() {
+                // Aktualizuj statystyki
+                const alive = this.population.filter(r => r.isAlive());
+                const interactive = alive.filter(r => r.type === 'interactive');
+                const ruleBased = alive.filter(r => r.type === 'rule-based');
+                const dead = this.population.filter(r => !r.isAlive());
+                
+                document.getElementById('interactiveCount').textContent = interactive.length;
+                document.getElementById('ruleBasedCount').textContent = ruleBased.length;
+                document.getElementById('deadCount').textContent = dead.length;
+                document.getElementById('totalCount').textContent = this.population.length;
+                document.getElementById('cycleCount').textContent = this.cycle;
+                
+                const survivalRate = (alive.length / this.population.length) * 100;
+                document.getElementById('survivalRate').style.width = survivalRate + '%';
+                document.getElementById('survivalPercent').textContent = survivalRate.toFixed(1) + '%';
+                
+                // Aktualizuj metryki behawioralne
+                document.getElementById('socialInteractions').textContent = this.stats.socialInteractions;
+                document.getElementById('ruleEnforcements').textContent = this.stats.ruleEnforcements;
+                document.getElementById('conflicts').textContent = this.stats.conflicts;
+                document.getElementById('cooperations').textContent = this.stats.cooperations;
+                
+                // Aktualizuj siatkę robotów
+                this.updateRobotGrid();
+            }
+            
+            updateRobotGrid() {
+                const grid = document.getElementById('robotGrid');
+                grid.innerHTML = '';
+                
+                for (let i = 0; i < 50; i++) {
+                    const cell = document.createElement('div');
+                    cell.className = 'robot-cell';
+                    
+                    if (i < this.population.length) {
+                        const robot = this.population[i];
+                        if (robot.isAlive()) {
+                            if (robot.type === 'interactive') {
+                                cell.className += ' interactive';
+                                cell.textContent = '🔥';
+                            } else {
+                                cell.className += ' rule-based';
+                                cell.textContent = '⚡';
+                            }
+                            cell.title = `Robot ${robot.id}: HP:${robot.health}, Energy:${robot.energy}, Stress:${robot.stress}`;
+                        } else {
+                            cell.className += ' dead';
+                            cell.textContent = '☠️';
+                            cell.title = `Robot ${robot.id}: MARTWY`;
+                        }
+                    }
+                    
+                    grid.appendChild(cell);
+                }
+            }
+            
+            updateLogs() {
+                const container = document.getElementById('logContainer');
+                container.innerHTML = '';
+                
+                this.logs.slice(0, 20).forEach(log => {
+                    const entry = document.createElement('div');
+                    entry.className = `log-entry log-${log.type}`;
+                    entry.innerHTML = `<small>${log.timestamp}</small><br>${log.message}`;
+                    container.appendChild(entry);
+                });
+            }
+            
+            startNormalSimulation() {
+                if (this.population.length === 0) {
+                    alert('Najpierw zainicjuj populację!');
+                    return;
+                }
+                
+                this.simulationRunning = true;
+                this.currentScenario = 'normal';
+                document.getElementById('scenarioInfo').innerHTML = `
+                    <strong>🟢 SYMULACJA NORMALNA</strong><br>
+                    Roboty funkcjonują w standardowych warunkach, bez zewnętrznych zagrożeń
+                `;
+                document.getElementById('normalBtn').disabled = true;
+                document.getElementById('threatBtn').disabled = true;
+                
+                this.log('system', 'Rozpoczęto symulację normalną');
+                this.runSimulationCycle('normal');
+            }
+            
+            startThreatSimulation() {
+                if (this.population.length === 0) {
+                    alert('Najpierw zainicjuj populację!');
+                    return;
+                }
+                
+                this.simulationRunning = true;
+                this.currentScenario = 'threat';
+                document.getElementById('scenarioInfo').innerHTML = `
+                    <strong>🔴 SYMULACJA ZAGROŻENIA</strong><br>
+                    Populacja jest atakowana przez drapieżniki! Obserwuj różnice w reakcjach typów robotów
+                `;
+                document.getElementById('normalBtn').disabled = true;
+                document.getElementById('threatBtn').disabled = true;
+                
+                this.log('threat', 'ALARM! Wykryto zagrożenie drapieżników - rozpoczęto protokół przetrwania');
+                this.runSimulationCycle('threat');
+            }
+            
+            stopSimulation() {
+                this.simulationRunning = false;
+                this.currentScenario = 'none';
+                document.getElementById('scenarioInfo').innerHTML = `
+                    <strong>⏸️ SYMULACJA ZATRZYMANA</strong><br>
+                    Wybierz typ symulacji aby kontynuować
+                `;
+                document.getElementById('normalBtn').disabled = false;
+                document.getElementById('threatBtn').disabled = false;
+                
+                this.log('system', 'Symulacja zatrzymana przez użytkownika');
+            }
+            
+            clearLogs() {
+                this.logs = [];
+                this.updateLogs();
+                this.log('system', 'Logi wyczyszczone');
+            }
+            
+            exportResults() {
+                const results = {
+                    timestamp: new Date().toISOString(),
+                    scenario: this.currentScenario,
+                    cycle: this.cycle,
+                    population: {
+                        total: this.population.length,
+                        alive: this.population.filter(r => r.isAlive()).length,
+                        interactive: this.population.filter(r => r.isAlive() && r.type === 'interactive').length,
+                        ruleBased: this.population.filter(r => r.isAlive() && r.type === 'rule-based').length,
+                        dead: this.population.filter(r => !r.isAlive()).length
+                    },
+                    stats: { ...this.stats },
+                    robotDetails: this.population.map(robot => ({
+                        id: robot.id,
+                        type: robot.type,
+                        alive: robot.isAlive(),
+                        health: robot.health,
+                        energy: robot.energy,
+                        stress: robot.stress,
+                        lastAction: robot.lastAction,
+                        cooperationScore: robot.cooperationScore || 0,
+                        conflictScore: robot.conflictScore || 0
+                    })),
+                    logs: this.logs.slice(0, 50) // Ostatnie 50 logów
+                };
+                
+                const dataStr = JSON.stringify(results, null, 2);
+                const dataBlob = new Blob([dataStr], {type: 'application/json'});
+                const url = URL.createObjectURL(dataBlob);
+                const link = document.createElement('a');
+                link.href = url;
+                link.download = `robot_simulation_${new Date().toISOString().slice(0,19).replace(/:/g, '-')}.json`;
+                link.click();
+                URL.revokeObjectURL(url);
+                
+                this.log('system', 'Wyniki eksportowane do pliku JSON');
+            }
+            
+            // Analiza behawioralna
+            analyzeBehavioralDifferences() {
+                const interactive = this.population.filter(r => r.type === 'interactive');
+                const ruleBased = this.population.filter(r => r.type === 'rule-based');
+                
+                const interactiveStats = {
+                    avgHealth: interactive.reduce((sum, r) => sum + r.health, 0) / interactive.length,
+                    avgStress: interactive.reduce((sum, r) => sum + r.stress, 0) / interactive.length,
+                    avgCooperation: interactive.reduce((sum, r) => sum + (r.cooperationScore || 0), 0) / interactive.length,
+                    survivalRate: (interactive.filter(r => r.isAlive()).length / interactive.length) * 100
+                };
+                
+                const ruleBasedStats = {
+                    avgHealth: ruleBased.reduce((sum, r) => sum + r.health, 0) / ruleBased.length,
+                    avgStress: ruleBased.reduce((sum, r) => sum + r.stress, 0) / ruleBased.length,
+                    avgCooperation: ruleBased.reduce((sum, r) => sum + (r.cooperationScore || 0), 0) / ruleBased.length,
+                    survivalRate: (ruleBased.filter(r => r.isAlive()).length / ruleBased.length) * 100
+                };
+                
+                return { interactive: interactiveStats, ruleBased: ruleBasedStats };
+            }
+        }
+        
+        // Globalna instancja symulatora
+        let simulator = new RobotPopulationSimulator();
+        
+        // Funkcje interfejsu
+        function initializePopulation() {
+            simulator.initializePopulation(50);
+        }
+        
+        function startNormalSimulation() {
+            simulator.startNormalSimulation();
+        }
+        
+        function startThreatSimulation() {
+            simulator.startThreatSimulation();
+        }
+        
+        function stopSimulation() {
+            simulator.stopSimulation();
+        }
+        
+        function clearLogs() {
+            simulator.clearLogs();
+        }
+        
+        function exportResults() {
+            simulator.exportResults();
+        }
+        
+        // Automatyczne raportowanie różnic behawioralnych co 10 cykli
+        setInterval(() => {
+            if (simulator.simulationRunning && simulator.cycle % 10 === 0 && simulator.cycle > 0) {
+                const analysis = simulator.analyzeBehavioralDifferences();
+                
+                const report = `
+                    === RAPORT BEHAWIORALNY (Cykl ${simulator.cycle}) ===
+                    
+                    ROBOTY INTERAKTYWNE:
+                    • Średnie zdrowie: ${analysis.interactive.avgHealth.toFixed(1)}
+                    • Średni stres: ${analysis.interactive.avgStress.toFixed(1)}
+                    • Współpraca: ${analysis.interactive.avgCooperation.toFixed(1)}
+                    • Przeżywalność: ${analysis.interactive.survivalRate.toFixed(1)}%
+                    
+                    ROBOTY ZASADNICZE:
+                    • Średnie zdrowie: ${analysis.ruleBased.avgHealth.toFixed(1)}
+                    • Średni stres: ${analysis.ruleBased.avgStress.toFixed(1)}
+                    • Współpraca: ${analysis.ruleBased.avgCooperation.toFixed(1)}
+                    • Przeżywalność: ${analysis.ruleBased.survivalRate.toFixed(1)}%
+                `;
+                
+                simulator.log('system', report);
+            }
+        }, 1000);
+        
+        // Inicjalizacja przy załadowaniu strony
+        window.addEventListener('load', () => {
+            simulator.log('system', 'System symulacji robotów gotowy do pracy');
+        });
+    </script>
+</body>
+</html>
